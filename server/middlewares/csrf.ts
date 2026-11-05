@@ -21,6 +21,14 @@ export function attachCSRFToken() {
   return async function attachCSRFTokenMiddleware(ctx: AppContext, next: Next) {
     // Only attach tokens for safe methods that don't mutate state
     if (["GET", "HEAD", "OPTIONS"].includes(ctx.method)) {
+      // Keep an existing valid token, rotating it on every request would
+      // invalidate tokens already handed out, e.g. in presigned upload forms.
+      const existing = getTokenFromCookie(ctx);
+      if (existing && unbundleToken(existing, env.SECRET_KEY).valid) {
+        await next();
+        return;
+      }
+
       const raw = generateRawToken(16);
       const bundled = bundleToken(raw, env.SECRET_KEY);
 
